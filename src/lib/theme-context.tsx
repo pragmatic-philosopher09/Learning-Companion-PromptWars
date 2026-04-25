@@ -1,5 +1,4 @@
-/* eslint-disable react-hooks/set-state-in-effect */
-/* eslint-disable react-hooks/set-state-in-effect */
+
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
@@ -19,8 +18,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const saved = localStorage.getItem('lc-theme') as Theme | null;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (saved) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTheme(saved);
       document.documentElement.setAttribute('data-theme', saved);
     } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {

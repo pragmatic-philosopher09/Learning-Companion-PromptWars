@@ -1,4 +1,3 @@
-/* eslint-disable */
 /**
  * @jest-environment node
  */
@@ -11,7 +10,7 @@ import { chatWithTutor } from '@/lib/gemini';
 import { fetchWikipediaSummary } from '@/lib/wikipedia';
 import { fetchRecommendedBooks } from '@/lib/openlibrary';
 
-function req(body: any) {
+function req(body: unknown) {
   return new Request('http://localhost/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

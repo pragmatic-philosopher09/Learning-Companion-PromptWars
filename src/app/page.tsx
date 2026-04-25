@@ -1,13 +1,25 @@
-/* eslint-disable */
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Brain, Sun, Moon, PanelLeftOpen, BookOpenCheck, Loader2 } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
 import Sidebar from '@/components/Sidebar';
 import { getFirebaseApp, getFirebaseAnalytics } from '@/lib/firebase';
 import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
+
+interface WikiData {
+  title: string;
+  extract: string;
+  url: string;
+  thumbnail?: string;
+}
+
+interface BookData {
+  title: string;
+  author: string;
+  coverUrl?: string;
+}
 
 // Lazy load heavy components for better efficiency
 const ChatInterface = dynamic(() => import('@/components/ChatInterface'), { 
@@ -23,8 +35,8 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [refPanelOpen, setRefPanelOpen] = useState(false);
   const [hasStarted, setHasStarted] = useState(false);
-  const [wikiData, setWikiData] = useState<any>(null);
-  const [books, setBooks] = useState<any[]>([]);
+  const [wikiData, setWikiData] = useState<WikiData | null>(null);
+  const [books, setBooks] = useState<BookData[]>([]);
   const [relatedTopics, setRelatedTopics] = useState<string[]>([]);
   const [keyConcepts, setKeyConcepts] = useState<{ term: string; messageIndex: number }[]>([]);
   const [topicsHistory, setTopicsHistory] = useState<string[]>([]);
@@ -33,7 +45,12 @@ export default function Home() {
 
   // Auth & Session State
   const [user, setUser] = useState<User | null>(null);
-  const sessionId = useRef(`session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
+  const [sessionId] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    }
+    return 'ssr_session';
+  });
   
   // Initialize Firebase Auth & Analytics
   useEffect(() => {
@@ -49,8 +66,8 @@ export default function Home() {
         }
       });
       return () => unsubscribe();
-    } catch (e) {
-      console.warn("Firebase not fully configured — progress saving disabled.");
+    } catch (err) {
+      console.warn("Firebase not fully configured — progress saving disabled.", err);
     }
   }, []);
 
@@ -65,7 +82,7 @@ export default function Home() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: user.uid,
-            sessionId: sessionId.current,
+            sessionId: sessionId,
             topicsExplored: topicsHistory,
             keyConcepts,
             messageCount,
@@ -79,7 +96,7 @@ export default function Home() {
     // Debounce the save to prevent spamming the API on every concept extracted
     const timer = setTimeout(saveProgress, 3000);
     return () => clearTimeout(timer);
-  }, [user, topicsHistory, keyConcepts, messageCount]);
+  }, [user, topicsHistory, keyConcepts, messageCount, sessionId]);
 
   const handleTopicSelect = useCallback((topic: string) => {
     setHasStarted(true);
@@ -100,9 +117,13 @@ export default function Home() {
     setRefPanelOpen(false);
   }, []);
 
-  const handleWikiData = useCallback((data: any) => {
-    setWikiData(data);
+  const handleWikiData = useCallback((data: unknown) => {
+    setWikiData(data as WikiData | null);
     if (data) setRefPanelOpen(true);
+  }, []);
+
+  const handleBooksData = useCallback((data: unknown[]) => {
+    setBooks(data as BookData[]);
   }, []);
 
   return (

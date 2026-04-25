@@ -1,6 +1,7 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { getAnalytics, Analytics, isSupported } from 'firebase/analytics';
 
 const firebaseConfig = {
@@ -17,6 +18,7 @@ const firebaseConfig = {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
+let storage: FirebaseStorage;
 let analytics: Analytics | null = null;
 
 function getFirebaseApp() {
@@ -24,8 +26,9 @@ function getFirebaseApp() {
     app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
     auth = getAuth(app);
     db = getFirestore(app);
+    storage = getStorage(app);
   }
-  return { app, auth, db };
+  return { app, auth, db, storage };
 }
 
 async function getFirebaseAnalytics() {
