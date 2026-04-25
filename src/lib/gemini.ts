@@ -1,6 +1,14 @@
 import { GoogleGenAI } from '@google/genai';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+let _ai: GoogleGenAI | null = null;
+function getAI() {
+  if (!_ai) {
+    const key = process.env.GEMINI_API_KEY;
+    if (!key) throw new Error('GEMINI_API_KEY environment variable is not set');
+    _ai = new GoogleGenAI({ apiKey: key });
+  }
+  return _ai;
+}
 
 const SYSTEM_PROMPT = `You are an intelligent, adaptive Learning Companion. Your purpose is to help users understand new concepts clearly, at their own pace, in a way that feels personal and encouraging — not robotic or overwhelming.
 
@@ -47,26 +55,43 @@ export async function chatWithTutor(
   history: ChatMessage[], 
   enrichmentContext?: string
 ) {
-  try {
-    let finalSystemPrompt = SYSTEM_PROMPT;
-    
-    // Inject enrichment context from multiple data sources
-    if (enrichmentContext) {
-      finalSystemPrompt += `\n\nBACKGROUND CONTEXT (Use this to inform your teaching, but synthesize it naturally — do not copy verbatim):\n${enrichmentContext}`;
-    }
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: history,
-      config: {
-        systemInstruction: finalSystemPrompt,
-        temperature: 0.7,
-      },
-    });
-
-    return response.text;
-  } catch (error) {
-    console.error('Gemini API Chat Error:', error);
-    return "I'm having trouble connecting right now. Please make sure your GEMINI_API_KEY is configured correctly and try again.";
+  let finalSystemPrompt = SYSTEM_PROMPT;
+  
+  // Inject enrichment context from multiple data sources
+  if (enrichmentContext) {
+    finalSystemPrompt += `\n\nBACKGROUND CONTEXT (Use this to inform your teaching, but synthesize it naturally — do not copy verbatim):\n${enrichmentContext}`;
   }
+
+  // Retry logic for rate-limit (429) errors
+  const maxRetries = 3;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await getAI().models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: history,
+        config: {
+          systemInstruction: finalSystemPrompt,
+          temperature: 0.7,
+        },
+      });
+
+      return response.text;
+    } catch (error: any) {
+      console.error(`Gemini API attempt ${attempt + 1}/${maxRetries}:`, error?.message || error);
+
+      // Retry on rate limit (429) errors
+      if (error?.status === 429 && attempt < maxRetries - 1) {
+        const waitSec = Math.pow(2, attempt + 1) * 5; // 10s, 20s, 40s
+        console.log(`Rate limited. Retrying in ${waitSec}s...`);
+        await new Promise(r => setTimeout(r, waitSec * 1000));
+        continue;
+      }
+
+      if (error?.message?.includes('API key')) {
+        return "⚠️ API key issue. Please verify your GEMINI_API_KEY in `.env.local` is valid.";
+      }
+      return "I'm having a brief connection issue. Let me try again — please resend your message.";
+    }
+  }
+  return "I'm currently rate-limited. Please wait a moment and try again.";
 }

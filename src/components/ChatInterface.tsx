@@ -1,158 +1,343 @@
-import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Bot, User, RefreshCcw } from 'lucide-react';
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, Loader2, Bot, User, Mic, MicOff, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
-import { ChatMessage } from '@/lib/gemini';
+import InlineQuiz from '@/components/InlineQuiz';
+import type { ChatMessage } from '@/lib/gemini';
 
-export default function ChatInterface() {
+interface WikiData {
+  title: string;
+  extract: string;
+  url?: string;
+  thumbnail?: string;
+}
+
+interface BookData {
+  title: string;
+  author: string;
+  coverUrl?: string;
+}
+
+interface Props {
+  onWikiData: (data: WikiData | null) => void;
+  onBooksData: (data: BookData[]) => void;
+  onRelatedTopics: (topics: string[]) => void;
+  onKeyConcepts: (concepts: { term: string; messageIndex: number }[]) => void;
+  onTopicDetected: (topic: string) => void;
+  onMessageCountChange: (count: number) => void;
+  externalMessage?: string | null;
+  onExternalMessageConsumed?: () => void;
+}
+
+// Parse quiz blocks from markdown
+function parseContent(text: string) {
+  const parts: { type: 'text' | 'quiz'; content: string }[] = [];
+  const quizRegex = /```quiz\s*\n?([\s\S]*?)\n?```/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = quizRegex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', content: text.slice(lastIndex, match.index) });
+    }
+    parts.push({ type: 'quiz', content: match[1].trim() });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', content: text.slice(lastIndex) });
+  }
+
+  return parts;
+}
+
+// Extract bold terms as key concepts
+function extractKeyConcepts(text: string, messageIndex: number): { term: string; messageIndex: number }[] {
+  const boldRegex = /\*\*([^*]+)\*\*/g;
+  const concepts: { term: string; messageIndex: number }[] = [];
+  let match;
+  while ((match = boldRegex.exec(text)) !== null) {
+    const term = match[1].trim();
+    if (term.length > 2 && term.length < 40 && !term.includes('\n')) {
+      concepts.push({ term, messageIndex });
+    }
+  }
+  return concepts;
+}
+
+export default function ChatInterface({
+  onWikiData, onBooksData, onRelatedTopics, onKeyConcepts,
+  onTopicDetected, onMessageCountChange,
+  externalMessage, onExternalMessageConsumed,
+}: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [topic, setTopic] = useState<string | null>(null);
-  
+  const [isListening, setIsListening] = useState(false);
+  const [allConcepts, setAllConcepts] = useState<{ term: string; messageIndex: number }[]>([]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   // Initial greeting
   useEffect(() => {
     if (messages.length === 0) {
       setMessages([{
         role: 'model',
-        parts: [{ text: "Hello! I'm your Learning Companion. What would you like to learn about today? (And how familiar are you with it already?)" }]
+        parts: [{ text: "Hey there! 👋 I'm your Learning Companion — think of me as a patient friend who loves explaining things.\n\nWhat would you like to learn about today? Pick a topic from the cards, or just type anything you're curious about!" }]
       }]);
     }
   }, [messages.length]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const extractPotentialTopic = (userInput: string) => {
-      // Basic heuristic to grab a topic if it's the first message.
-      if (!topic && messages.length <= 2) {
-          // just use the user's first input as a very broad topic hint for Wikipedia
-          setTopic(userInput);
+  // Report message count changes
+  useEffect(() => {
+    onMessageCountChange(messages.length);
+  }, [messages.length, onMessageCountChange]);
+
+  // Handle external messages (from topic cards, sidebar quick actions)
+  useEffect(() => {
+    if (externalMessage && !loading) {
+      sendMessage(externalMessage);
+      onExternalMessageConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalMessage]);
+
+  // Voice input setup
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          setInput(transcript);
+          setIsListening(false);
+        };
+        recognition.onerror = () => setIsListening(false);
+        recognition.onend = () => setIsListening(false);
+        recognitionRef.current = recognition;
       }
+    }
+  }, []);
+
+  const toggleVoice = () => {
+    if (!recognitionRef.current) return;
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current.start();
+      setIsListening(true);
+    }
   };
 
-  const handleSend = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!input.trim() || loading) return;
-
-    const userMessage: ChatMessage = { role: 'user', parts: [{ text: input.trim() }] };
+  const sendMessage = useCallback(async (text: string) => {
+    const userMessage: ChatMessage = { role: 'user', parts: [{ text }] };
     const newMessages = [...messages, userMessage];
-    
     setMessages(newMessages);
     setInput('');
     setLoading(true);
-    extractPotentialTopic(input.trim());
+
+    // Detect topic from first user message
+    if (!topic && messages.length <= 2) {
+      setTopic(text);
+      onTopicDetected(text);
+    }
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, topic: topic || input.trim() })
+        body: JSON.stringify({ messages: newMessages, topic: topic || text }),
       });
       const data = await res.json();
-      
+
       if (data.reply) {
-        setMessages([...newMessages, { role: 'model', parts: [{ text: data.reply }] }]);
+        const updatedMessages: ChatMessage[] = [...newMessages, { role: 'model', parts: [{ text: data.reply }] }];
+        setMessages(updatedMessages);
+
+        // Extract key concepts from the AI response
+        const newConcepts = extractKeyConcepts(data.reply, updatedMessages.length - 1);
+        if (newConcepts.length > 0) {
+          const merged = [...allConcepts, ...newConcepts];
+          // Deduplicate by term
+          const unique = merged.filter((c, i, arr) => arr.findIndex(x => x.term.toLowerCase() === c.term.toLowerCase()) === i);
+          setAllConcepts(unique);
+          onKeyConcepts(unique);
+        }
       }
+
+      // Update reference panel data
+      if (data.wikiData) onWikiData(data.wikiData);
+      if (data.books) onBooksData(data.books);
+      if (data.relatedTopics) onRelatedTopics(data.relatedTopics);
     } catch (error) {
       console.error('Failed to send message:', error);
       setMessages([...newMessages, { role: 'model', parts: [{ text: "Sorry, I'm having trouble connecting right now. Please try again." }] }]);
     } finally {
       setLoading(false);
     }
+  }, [messages, topic, allConcepts, onWikiData, onBooksData, onRelatedTopics, onKeyConcepts, onTopicDetected]);
+
+  const handleSubmit = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!input.trim() || loading) return;
+    sendMessage(input.trim());
   };
 
-  const resetChat = () => {
-      setTopic(null);
-      setMessages([]);
-  };
+  const resetChat = useCallback(() => {
+    setTopic(null);
+    setMessages([]);
+    setAllConcepts([]);
+    onWikiData(null);
+    onBooksData([]);
+    onRelatedTopics([]);
+    onKeyConcepts([]);
+  }, [onWikiData, onBooksData, onRelatedTopics, onKeyConcepts]);
 
   return (
-    <div className="flex flex-col h-[80vh] max-h-[800px] w-full max-w-4xl mx-auto glass-panel rounded-3xl overflow-hidden shadow-2xl relative">
-      
-      {/* Header */}
-      <div className="flex justify-between items-center px-6 py-4 border-b border-slate-200/50 dark:border-slate-700/50 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md z-10">
-        <div className="flex items-center gap-3">
-            <div className="bg-indigo-500 p-2 rounded-xl shadow-lg shadow-indigo-500/30">
-               <Bot className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="font-bold text-lg leading-tight">Learning Companion</h2>
-              <p className="text-xs text-indigo-500 dark:text-indigo-400 font-medium">Adaptive AI Tutor</p>
-            </div>
-        </div>
-        <button 
-          onClick={resetChat}
-          className="p-2 text-slate-400 hover:text-indigo-500 transition-colors rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
-          title="Start a new topic"
-        >
-            <RefreshCcw className="w-5 h-5" />
-        </button>
-      </div>
-
+    <div className="flex flex-col h-full w-full overflow-hidden">
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto chat-scroll px-4 sm:px-6 py-6 space-y-5">
         <AnimatePresence initial={false}>
           {messages.map((msg, idx) => {
             const isUser = msg.role === 'user';
+            const parsed = isUser ? [{ type: 'text' as const, content: msg.parts[0].text }] : parseContent(msg.parts[0].text);
+
             return (
               <motion.div
                 key={idx}
-                initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                className={`flex gap-4 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
+                className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
               >
-                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${isUser ? 'bg-pink-500' : 'bg-indigo-500'}`}>
+                {/* Avatar */}
+                <div className={`flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center shadow-sm ${
+                  isUser 
+                    ? 'bg-gradient-to-br from-pink-500 to-rose-500' 
+                    : 'bg-gradient-to-br from-indigo-500 to-violet-600'
+                }`}>
                   {isUser ? <User className="w-4 h-4 text-white" /> : <Bot className="w-4 h-4 text-white" />}
                 </div>
-                
-                <div className={`max-w-[80%] rounded-2xl p-5 ${
-                  isUser 
-                    ? 'bg-gradient-to-br from-pink-500 to-rose-500 text-white rounded-tr-sm shadow-md shadow-pink-500/20' 
-                    : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-tl-sm shadow-sm text-slate-800 dark:text-slate-200'
-                }`}>
-                  <div className={`prose max-w-none ${isUser ? 'prose-invert prose-p:text-white' : 'prose-indigo dark:prose-invert'} prose-sm sm:prose-base`}>
-                    <ReactMarkdown>{msg.parts[0].text}</ReactMarkdown>
-                  </div>
+
+                {/* Content */}
+                <div className={`max-w-[80%] ${isUser ? 'items-end' : 'items-start'}`}>
+                  {isUser ? (
+                    <div 
+                      className="rounded-2xl rounded-tr-sm px-5 py-3 shadow-sm"
+                      style={{ 
+                        background: 'linear-gradient(135deg, #ec4899, #f43f5e)',
+                        color: 'white',
+                      }}
+                    >
+                      <p className="text-sm leading-relaxed">{msg.parts[0].text}</p>
+                    </div>
+                  ) : (
+                    <div 
+                      className="rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm border"
+                      style={{ 
+                        background: 'var(--bg-secondary)', 
+                        borderColor: 'var(--border-color)',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      {parsed.map((part, pIdx) => {
+                        if (part.type === 'quiz') {
+                          try {
+                            const quizData = JSON.parse(part.content);
+                            return <InlineQuiz key={pIdx} quiz={quizData} />;
+                          } catch {
+                            return <p key={pIdx} className="text-sm text-red-500">Failed to render quiz.</p>;
+                          }
+                        }
+                        return (
+                          <div key={pIdx} className="prose prose-sm sm:prose-base max-w-none prose-indigo dark:prose-invert prose-p:leading-relaxed prose-headings:font-bold prose-strong:text-indigo-600 dark:prose-strong:text-indigo-400">
+                            <ReactMarkdown>{part.content}</ReactMarkdown>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             );
           })}
         </AnimatePresence>
-        
+
         {loading && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-4">
-             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center shadow-sm">
-                 <Bot className="w-4 h-4 text-white" />
-             </div>
-             <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl rounded-tl-sm p-5 shadow-sm flex items-center gap-2">
-                 <Loader2 className="w-5 h-5 text-indigo-500 animate-spin" />
-                 <span className="text-sm font-medium text-slate-500">Thinking...</span>
-             </div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
+            <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-sm">
+              <Bot className="w-4 h-4 text-white" />
+            </div>
+            <div 
+              className="rounded-2xl rounded-tl-sm px-5 py-4 shadow-sm border flex items-center gap-3"
+              style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+            >
+              <div className="flex gap-1">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-2 h-2 rounded-full bg-indigo-300 animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+              <span className="text-xs font-medium" style={{ color: 'var(--text-tertiary)' }}>Thinking...</span>
+            </div>
           </motion.div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border-t border-slate-200/50 dark:border-slate-700/50">
-        <form onSubmit={handleSend} className="relative flex items-center">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your answer or ask a question..."
-            disabled={loading}
-            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full pl-6 pr-14 py-4 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 shadow-sm transition-shadow"
-          />
+      <div className="flex-shrink-0 p-4 border-t" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
+        <form onSubmit={handleSubmit} className="flex items-center gap-2">
+          {/* Voice button */}
+          {recognitionRef.current && (
+            <button
+              type="button"
+              onClick={toggleVoice}
+              className={`p-3 rounded-xl transition-all ${
+                isListening 
+                  ? 'bg-red-500 text-white shadow-lg shadow-red-500/30 animate-pulse' 
+                  : ''
+              }`}
+              style={!isListening ? { color: 'var(--text-tertiary)', background: 'var(--bg-tertiary)' } : {}}
+              aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+            >
+              {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </button>
+          )}
+
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={isListening ? "Listening..." : "Type your answer or ask a question..."}
+              disabled={loading}
+              className="w-full rounded-xl pl-5 pr-5 py-3.5 text-sm border focus:outline-none focus:ring-2 focus:ring-indigo-500/40 transition-all"
+              style={{ 
+                background: 'var(--bg-tertiary)', 
+                borderColor: 'var(--border-color)', 
+                color: 'var(--text-primary)' 
+              }}
+            />
+          </div>
+
           <button
             type="submit"
             disabled={!input.trim() || loading}
-            className="absolute right-2 p-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-indigo-500/30"
+            className="p-3 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-indigo-500/20"
           >
             <Send className="w-5 h-5" />
           </button>
@@ -161,3 +346,8 @@ export default function ChatInterface() {
     </div>
   );
 }
+
+// Export reset function handle type
+export type ChatInterfaceHandle = {
+  resetChat: () => void;
+};

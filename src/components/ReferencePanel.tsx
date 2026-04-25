@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import { ExternalLink, BookOpen, X, Globe, Library, GraduationCap } from 'lucide-react';
 
 interface WikiData {
@@ -29,13 +28,18 @@ export default function ReferencePanel({ isOpen, onClose, wikiData, relatedTopic
   if (!isOpen) return null;
 
   return (
-    <motion.aside
-      initial={{ x: 320 }}
-      animate={{ x: 0 }}
-      exit={{ x: 320 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-      className="fixed lg:relative z-30 top-0 right-0 h-full w-[320px] flex flex-col border-l overflow-hidden"
-      style={{ background: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
+    <aside
+      style={{
+        width: 320,
+        flexShrink: 0,
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column' as const,
+        borderLeft: '1px solid var(--border-color)',
+        background: 'var(--bg-secondary)',
+        overflow: 'hidden',
+        zIndex: 30,
+      }}
     >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
@@ -135,6 +139,6 @@ export default function ReferencePanel({ isOpen, onClose, wikiData, relatedTopic
           </div>
         )}
       </div>
-    </motion.aside>
+    </aside>
   );
 }

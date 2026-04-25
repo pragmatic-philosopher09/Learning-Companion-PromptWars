@@ -46,9 +46,15 @@
 }
 
 /* ─── Base ─── */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--text-tertiary) transparent;
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 body {
@@ -58,6 +64,12 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* ─── Scrollbar ─── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--text-tertiary) transparent;
 }
 
 /* ─── Glass Panel ─── */
@@ -140,20 +152,4 @@ body {
   border-radius: 6px;
   font-weight: 500;
   color: var(--color-primary);
-}
-
-/* ─── Sidebar transitions ─── */
-.sidebar-enter {
-  animation: slideIn 0.3s ease;
-}
-@keyframes slideIn {
-  from { transform: translateX(-100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-.panel-enter {
-  animation: slideInRight 0.3s ease;
-}
-@keyframes slideInRight {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
 }
