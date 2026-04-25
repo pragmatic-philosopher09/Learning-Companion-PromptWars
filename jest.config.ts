@@ -1,0 +1,24 @@
+import type { Config } from 'jest';
+
+const config: Config = {
+  testEnvironment: 'jsdom',
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+  },
+  transform: {
+    '^.+\\.(ts|tsx)$': ['ts-jest', {
+      tsconfig: 'tsconfig.json',
+      jsx: 'react-jsx',
+    }],
+  },
+  testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/.next/'],
+  collectCoverageFrom: [
+    'src/lib/**/*.{ts,tsx}',
+    'src/app/api/**/*.{ts,tsx}',
+    'src/components/**/*.{ts,tsx}',
+    '!src/**/*.d.ts',
+  ],
+};
+
+export default config;
