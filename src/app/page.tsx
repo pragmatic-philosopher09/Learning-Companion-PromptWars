@@ -1,12 +1,20 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { Brain, Sun, Moon, PanelLeftOpen, BookOpenCheck } from 'lucide-react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import dynamic from 'next/dynamic';
+import { Brain, Sun, Moon, PanelLeftOpen, BookOpenCheck, Loader2 } from 'lucide-react';
 import { useTheme } from '@/lib/theme-context';
-import ChatInterface from '@/components/ChatInterface';
 import Sidebar from '@/components/Sidebar';
-import ReferencePanel from '@/components/ReferencePanel';
-import TopicCards from '@/components/TopicCards';
+import { getFirebaseApp, getFirebaseAnalytics } from '@/lib/firebase';
+import { signInAnonymously, onAuthStateChanged, User } from 'firebase/auth';
+
+// Lazy load heavy components for better efficiency
+const ChatInterface = dynamic(() => import('@/components/ChatInterface'), { 
+  loading: () => <div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-indigo-500" /></div>,
+  ssr: false
+});
+const ReferencePanel = dynamic(() => import('@/components/ReferencePanel'), { ssr: false });
+const TopicCards = dynamic(() => import('@/components/TopicCards'), { ssr: false });
 
 export default function Home() {
   const { theme, toggleTheme } = useTheme();
@@ -21,6 +29,56 @@ export default function Home() {
   const [topicsHistory, setTopicsHistory] = useState<string[]>([]);
   const [messageCount, setMessageCount] = useState(0);
   const [externalMessage, setExternalMessage] = useState<string | null>(null);
+
+  // Auth & Session State
+  const [user, setUser] = useState<User | null>(null);
+  const sessionId = useRef(`session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
+  
+  // Initialize Firebase Auth & Analytics
+  useEffect(() => {
+    try {
+      const { auth } = getFirebaseApp();
+      getFirebaseAnalytics(); // Initialize GA if supported
+
+      const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        if (currentUser) {
+          setUser(currentUser);
+        } else {
+          signInAnonymously(auth).catch(console.error);
+        }
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.warn("Firebase not fully configured — progress saving disabled.");
+    }
+  }, []);
+
+  // Save Progress to API
+  useEffect(() => {
+    if (!user || messageCount === 0) return;
+
+    const saveProgress = async () => {
+      try {
+        await fetch('/api/progress', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: user.uid,
+            sessionId: sessionId.current,
+            topicsExplored: topicsHistory,
+            keyConcepts,
+            messageCount,
+          }),
+        });
+      } catch (error) {
+        console.error('Failed to save progress:', error);
+      }
+    };
+
+    // Debounce the save to prevent spamming the API on every concept extracted
+    const timer = setTimeout(saveProgress, 3000);
+    return () => clearTimeout(timer);
+  }, [user, topicsHistory, keyConcepts, messageCount]);
 
   const handleTopicSelect = useCallback((topic: string) => {
     setHasStarted(true);

@@ -1,5 +1,7 @@
 'use client';
 
+import { memo } from 'react';
+
 import { 
   BookOpen, RotateCcw, MessageSquareQuote, 
   ChevronLeft, Sparkles
@@ -56,7 +58,7 @@ function ProgressRing({ progress }: { progress: number }) {
   );
 }
 
-export default function Sidebar({ 
+const Sidebar = memo(function Sidebar({ 
   isOpen, onClose, topicsHistory, keyConcepts, messageCount,
   onNewTopic, onRequestQuiz, onRequestSummary 
 }: Props) {
@@ -164,4 +166,6 @@ export default function Sidebar({
       </div>
     </aside>
   );
-}
+});
+
+export default Sidebar;

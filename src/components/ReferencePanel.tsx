@@ -1,5 +1,7 @@
 'use client';
 
+import { memo } from 'react';
+
 import { ExternalLink, BookOpen, X, Globe, Library, GraduationCap } from 'lucide-react';
 
 interface WikiData {
@@ -24,7 +26,7 @@ interface Props {
   onSelectTopic: (topic: string) => void;
 }
 
-export default function ReferencePanel({ isOpen, onClose, wikiData, relatedTopics, books, onSelectTopic }: Props) {
+const ReferencePanel = memo(function ReferencePanel({ isOpen, onClose, wikiData, relatedTopics, books, onSelectTopic }: Props) {
   if (!isOpen) return null;
 
   return (
@@ -141,4 +143,6 @@ export default function ReferencePanel({ isOpen, onClose, wikiData, relatedTopic
       </div>
     </aside>
   );
-}
+});
+
+export default ReferencePanel;
