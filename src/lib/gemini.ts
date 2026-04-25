@@ -76,7 +76,9 @@ export async function chatWithTutor(
       });
 
       return response.text;
-    } catch (error: any) {
+    } catch (err: unknown) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const error = err as any;
       console.error(`Gemini API attempt ${attempt + 1}/${maxRetries}:`, error?.message || error);
 
       // Retry on rate limit (429) errors

@@ -25,6 +25,8 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
+        <link rel="preconnect" href="https://upload.wikimedia.org" />
+        <link rel="preconnect" href="https://covers.openlibrary.org" />
         {/* Google Analytics */}
         {GA_ID && (
           <>

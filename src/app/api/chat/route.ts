@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     }
 
     // ── Gather enrichment data from multiple sources ──
-    let enrichmentParts: string[] = [];
+    const enrichmentParts: string[] = [];
     let wikiData = null;
     let books: { title: string; author: string; coverUrl?: string }[] = [];
     let topicMeta = null;

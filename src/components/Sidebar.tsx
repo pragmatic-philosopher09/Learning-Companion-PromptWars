@@ -3,8 +3,7 @@
 import { memo } from 'react';
 
 import { 
-  BookOpen, RotateCcw, MessageSquareQuote, 
-  ChevronLeft, Sparkles
+  BookOpen, RotateCcw, MessageSquareQuote
 } from 'lucide-react';
 
 interface KeyConcept {
@@ -59,7 +58,7 @@ function ProgressRing({ progress }: { progress: number }) {
 }
 
 const Sidebar = memo(function Sidebar({ 
-  isOpen, onClose, topicsHistory, keyConcepts, messageCount,
+  isOpen, topicsHistory, keyConcepts, messageCount,
   onNewTopic, onRequestQuiz, onRequestSummary 
 }: Props) {
   const progress = Math.min(100, Math.round((messageCount / 20) * 100));

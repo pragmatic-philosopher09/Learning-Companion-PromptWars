@@ -1,6 +1,7 @@
 'use client';
 
 import { memo } from 'react';
+import Image from 'next/image';
 
 import { ExternalLink, BookOpen, X, Globe, Library, GraduationCap } from 'lucide-react';
 
@@ -63,11 +64,15 @@ const ReferencePanel = memo(function ReferencePanel({ isOpen, onClose, wikiData,
               <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--text-tertiary)' }}>Wikipedia</span>
             </div>
             {wikiData.thumbnail && (
-              <img 
-                src={wikiData.thumbnail} 
-                alt={wikiData.title}
-                className="w-full h-32 object-cover rounded-xl mb-3 shadow-sm"
-              />
+              <div className="relative w-full h-32 mb-3">
+                <Image 
+                  src={wikiData.thumbnail} 
+                  alt={wikiData.title}
+                  fill
+                  className="object-cover rounded-xl shadow-sm"
+                  unoptimized
+                />
+              </div>
             )}
             <h3 className="font-bold text-sm mb-2" style={{ color: 'var(--text-primary)' }}>{wikiData.title}</h3>
             <p className="text-xs leading-relaxed line-clamp-6" style={{ color: 'var(--text-secondary)' }}>
@@ -103,7 +108,9 @@ const ReferencePanel = memo(function ReferencePanel({ isOpen, onClose, wikiData,
               {books.slice(0, 4).map((book, idx) => (
                 <div key={idx} className="flex items-center gap-3 p-2 rounded-xl" style={{ background: 'var(--bg-tertiary)' }}>
                   {book.coverUrl ? (
-                    <img src={book.coverUrl} alt={book.title} className="w-8 h-12 rounded object-cover shadow-sm" />
+                    <div className="relative w-8 h-12 flex-shrink-0">
+                      <Image src={book.coverUrl} alt={book.title} fill className="rounded object-cover shadow-sm" unoptimized />
+                    </div>
                   ) : (
                     <div className="w-8 h-12 rounded flex items-center justify-center" style={{ background: 'var(--border-color)' }}>
                       <BookOpen className="w-4 h-4" style={{ color: 'var(--text-tertiary)' }} />

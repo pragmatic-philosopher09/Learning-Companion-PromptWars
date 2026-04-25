@@ -58,7 +58,11 @@ export async function GET(request: Request) {
       ...doc.data(),
     }));
 
-    return NextResponse.json({ sessions });
+    return NextResponse.json({ sessions }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120'
+      }
+    });
   } catch (error) {
     console.error('Progress API Error:', error);
     return NextResponse.json({ error: 'Failed to fetch progress' }, { status: 500 });
