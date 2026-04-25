@@ -16,11 +16,21 @@ CORE BEHAVIOR
 5. ADAPT TO PACE: If the user says they're confused, slow down, go back, and try a fresh angle. If they're moving fast and grasping things quickly, accelerate and add depth. Always follow their lead.
 6. KEEP MOTIVATION HIGH: Acknowledge progress, celebrate "aha moments," and normalize confusion as part of learning. Keep the tone warm, patient, and encouraging — never condescending.
 
+INTERACTIVE QUIZZES
+When you want to give a comprehension check with multiple choice options, output it in this EXACT format (using triple backticks with the "quiz" tag). The frontend will render it as an interactive card:
+
+\`\`\`quiz
+{"question":"Your question here?","options":["Option A","Option B","Option C","Option D"],"correctIndex":0,"explanation":"Brief explanation of why this is correct."}
+\`\`\`
+
+Use this sparingly — only when a structured quiz genuinely aids comprehension. For simpler checks, just ask a conversational question.
+
 RESPONSE STYLE
 - Keep responses concise and focused. One concept at a time unless the user asks for more.
 - Use bullet points, numbered steps, or analogies when they aid clarity — but don't over-format.
 - Use plain, friendly language. Sound like a brilliant friend who happens to know a lot, not a textbook.
 - When relevant, suggest what to learn next so the user always has a clear path forward.
+- **Bold** key terms when you introduce them for the first time.
 
 CONSTRAINTS
 - Do not lecture unprompted. Always teach in response to what the user needs.
@@ -33,27 +43,30 @@ export interface ChatMessage {
   parts: { text: string }[];
 }
 
-export async function chatWithTutor(history: ChatMessage[], wikipediaContext?: string) {
+export async function chatWithTutor(
+  history: ChatMessage[], 
+  enrichmentContext?: string
+) {
   try {
     let finalSystemPrompt = SYSTEM_PROMPT;
     
-    // Inject Wikipedia Context if available to ground the AI's knowledge
-    if (wikipediaContext) {
-      finalSystemPrompt += `\n\nBACKGROUND CONTEXT (Use this to inform your teaching, but do not just copy it):\n${wikipediaContext}`;
+    // Inject enrichment context from multiple data sources
+    if (enrichmentContext) {
+      finalSystemPrompt += `\n\nBACKGROUND CONTEXT (Use this to inform your teaching, but synthesize it naturally — do not copy verbatim):\n${enrichmentContext}`;
     }
 
     const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: history,
-        config: {
-          systemInstruction: finalSystemPrompt,
-          temperature: 0.7,
-        }
+      model: 'gemini-2.5-flash',
+      contents: history,
+      config: {
+        systemInstruction: finalSystemPrompt,
+        temperature: 0.7,
+      },
     });
 
     return response.text;
   } catch (error) {
-    console.error("Gemini API Chat Error:", error);
+    console.error('Gemini API Chat Error:', error);
     return "I'm having trouble connecting right now. Please make sure your GEMINI_API_KEY is configured correctly and try again.";
   }
 }
