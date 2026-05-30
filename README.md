@@ -8,6 +8,8 @@ Learning Companion is an intelligent, adaptive learning platform powered by Goog
 
 ## ✨ Key Features
 
+### Deployed Link: https://learning-companion-329865469129.us-central1.run.app/
+
 ### 🎯 Adaptive Teaching
 The AI doesn't just answer questions — it **teaches**. It starts by asking what you already know, then calibrates its explanations to your level:
 - **Beginners** get analogies, simple language, and real-world examples
